@@ -1,4 +1,7 @@
+// src/components/LoginPage.jsx
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -6,46 +9,40 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
-    if (e) e.preventDefault();
+  const handleLogin = async () => {
     setLoading(true);
     setError('');
     
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
+      const response = await axios.post('http://localhost:5000/api/auth/login', { 
+        email, 
+        password 
       });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
       
       // Store token in localStorage or sessionStorage
       if (rememberMe) {
-        localStorage.setItem('token', data.token);
+        localStorage.setItem('token', response.data.token);
       } else {
-        sessionStorage.setItem('token', data.token);
+        sessionStorage.setItem('token', response.data.token);
       }
       
-      // Redirect to dashboard or home page
-      window.location.href = '/dashboard';
+      // Store user data
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      
+      // Redirect to dashboard
+      navigate('/dashboard');
       
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSignUp = () => {
-    window.location.href = '/register';
+    navigate('/register');
   };
 
   return (
@@ -105,7 +102,7 @@ const LoginPage = () => {
               </label>
             </div>
             <div className="text-sm">
-              <a href="/forgot-password" className="text-blue-600 hover:text-blue-800">
+              <a href="#" className="text-blue-600 hover:text-blue-800">
                 Forgot password?
               </a>
             </div>

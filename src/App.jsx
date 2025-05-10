@@ -1,16 +1,39 @@
 // src/App.jsx
-import React from 'react';
-import LoginForm from './components/LoginForm';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
+import Dashboard from './components/Dashboard';
+
+// Check if user is authenticated
+const isAuthenticated = () => {
+  return localStorage.getItem('token') || sessionStorage.getItem('token') ? true : false;
+};
+
+// Protected Route component
+const ProtectedRoute = ({ children }) => {
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" />;
+  }
+  return children;
+};
 
 function App() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <LoginForm />
-        <RegisterPage />
-      </div>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="/" element={<Navigate to="/login" />} />
+      </Routes>
+    </Router>
   );
 }
 

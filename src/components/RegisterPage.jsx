@@ -1,4 +1,7 @@
+// src/components/RegisterPage.jsx
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const RegisterPage = () => {
   const [name, setName] = useState('');
@@ -7,14 +10,11 @@ const RegisterPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const navigate = useNavigate();
 
-  const handleRegister = async (e) => {
-    if (e) e.preventDefault();
-    
-    // Reset states
+  const handleRegister = async () => {
+    // Reset error state
     setError('');
-    setSuccess(false);
     
     // Validate password match
     if (password !== confirmPassword) {
@@ -31,36 +31,28 @@ const RegisterPage = () => {
     setLoading(true);
     
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name, email, password }),
+      const response = await axios.post('http://localhost:5000/api/auth/register', {
+        name,
+        email,
+        password
       });
       
-      const data = await response.json();
+      // Since registration endpoint returns a token, we can log the user in immediately
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
       
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
-      }
-      
-      setSuccess(true);
-      
-      // Redirect to login page after a delay
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 2000);
+      // Redirect to dashboard after successful registration
+      navigate('/dashboard');
       
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const navigateToLogin = () => {
-    window.location.href = '/login';
+    navigate('/login');
   };
 
   return (
@@ -74,12 +66,6 @@ const RegisterPage = () => {
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded m-4" role="alert">
             <span className="block sm:inline">{error}</span>
-          </div>
-        )}
-        
-        {success && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded m-4" role="alert">
-            <span className="block sm:inline">Registration successful! Redirecting to login...</span>
           </div>
         )}
         

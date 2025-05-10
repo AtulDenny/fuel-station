@@ -1,46 +1,65 @@
-// src/components/Dashboard.js
-import React, { useState, useEffect } from 'react';
+// src/components/Dashboard.jsx
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         
-        const response = await fetch('/api/auth/user', {
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+        
+        const response = await axios.get('http://localhost:5000/api/auth/user', {
           headers: {
             'x-auth-token': token
           }
         });
         
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.message || 'Failed to fetch user data');
-        }
-        
-        setUser(data);
+        setUser(response.data);
       } catch (err) {
-        setError(err.message);
+        console.error('Error fetching user data:', err);
+        setError(err.response?.data?.message || err.message || 'Failed to fetch user data');
       } finally {
         setLoading(false);
       }
     };
 
     fetchUserData();
+    
+    // Fallback to localStorage if API call fails
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        if (!user) {
+          setUser(parsedUser);
+        }
+      } catch (e) {
+        console.error('Error parsing stored user data', e);
+      }
+    }
   }, []);
 
   const handleLogout = () => {
+    // Clear auth data
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     sessionStorage.removeItem('token');
-    window.location.href = '/login';
+    
+    // Redirect to login
+    navigate('/login');
   };
 
-  if (loading) {
+  if (loading && !user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
         <div className="text-center">
@@ -50,7 +69,7 @@ const Dashboard = () => {
     );
   }
 
-  if (error) {
+  if (error && !user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
         <div className="text-center">
@@ -89,11 +108,22 @@ const Dashboard = () => {
       
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <div className="border-4 border-dashed border-gray-200 rounded-lg h-96 p-4">
+          <div className="border-4 border-dashed border-gray-200 rounded-lg p-4">
             <h2 className="text-lg font-semibold mb-4">User Information</h2>
             <p><strong>Name:</strong> {user?.name}</p>
             <p><strong>Email:</strong> {user?.email}</p>
-            <p><strong>Account created:</strong> {new Date(user?.createdAt).toLocaleString()}</p>
+            <p><strong>Account created:</strong> {user?.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}</p>
+          </div>
+          
+          <div className="mt-6 bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-semibold mb-4">Welcome to Your Dashboard!</h2>
+            <p className="mb-4">
+              Your account has been successfully created and you're now logged in.
+            </p>
+            <p>
+              This is a simple dashboard page. In a real application, you would see your personalized
+              content, settings, and other features here.
+            </p>
           </div>
         </div>
       </div>

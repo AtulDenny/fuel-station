@@ -1,4 +1,4 @@
-// server.js
+// server/server.js
 import express from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -66,7 +66,23 @@ app.post('/api/auth/register', async (req, res) => {
 
     await user.save();
 
-    res.status(201).json({ message: 'User registered successfully' });
+    // Generate JWT token for immediate login after registration
+    const token = jwt.sign(
+      { id: user._id, name: user.name, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    // Return token and user data for immediate login
+    res.status(201).json({ 
+      message: 'User registered successfully',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
+      }
+    });
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -142,36 +158,13 @@ app.get('/api/auth/user', auth, async (req, res) => {
   }
 });
 
-// Create a test user for development
-const createTestUser = async () => {
-  try {
-    const testEmail = 'test@example.com';
-    const existingUser = await User.findOne({ email: testEmail });
-    
-    if (!existingUser) {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('password123', salt);
-      
-      const testUser = new User({
-        name: 'Test User',
-        email: testEmail,
-        password: hashedPassword
-      });
-      
-      await testUser.save();
-      console.log('Test user created: test@example.com / password123');
-    }
-  } catch (error) {
-    console.error('Error creating test user:', error);
-  }
-};
-
 // Serve static files for production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static('client/build'));
+  // Serve the static files from the Vite build output directory
+  app.use(express.static(path.resolve(__dirname, '../dist')));
   
   app.get('*', (req, res) => {
-    res.sendFile(path.resolve(__dirname, 'client', 'build', 'index.html'));
+    res.sendFile(path.resolve(__dirname, '../dist', 'index.html'));
   });
 }
 
@@ -179,5 +172,4 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  createTestUser(); // Create test user on server start
 });
