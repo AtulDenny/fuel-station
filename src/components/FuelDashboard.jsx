@@ -1,16 +1,16 @@
-// src/components/FuelDashboard.jsx
+// src/components/FuelDashboard.jsx (Updated to include Receipts tab)
 import { useState, useEffect } from 'react';
 import { getFuelEntries, getFuelStats, seedAllData } from '../services/fuel';
 import FuelTable from './FuelTable';
 import AddFuelForm from './AddFuelForm';
 import MachineStats from './MachineStats';
 import EmployeeStats from './EmployeeStats';
+import ReceiptsTab from './ReceiptsTab';
 
 const FuelDashboard = () => {
   const [fuelEntries, setFuelEntries] = useState([]);
   const [fuelStats, setFuelStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  // Removed unused statsLoading state
   const [error, setError] = useState('');
   const [seedLoading, setSeedLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
@@ -62,7 +62,6 @@ const FuelDashboard = () => {
   
   // Fetch fuel statistics
   const loadFuelStats = async () => {
-    // Removed statsLoading state since it's not used in the component
     try {
       const stats = await getFuelStats(period);
       setFuelStats(stats);
@@ -112,7 +111,7 @@ const FuelDashboard = () => {
     };
     
     loadData();
-  }, [period]); // Only depend on period, not loadFuelStats which would cause infinite loop
+  }, [period]);
 
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -136,7 +135,7 @@ const FuelDashboard = () => {
             <div className="flex">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-3 py-1 rounded-l ${
+                className={`px-3 py-1 ${
                   activeTab === 'overview' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -156,7 +155,7 @@ const FuelDashboard = () => {
               </button>
               <button
                 onClick={() => setActiveTab('employees')}
-                className={`px-3 py-1 rounded-r ${
+                className={`px-3 py-1 ${
                   activeTab === 'employees' 
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -164,28 +163,40 @@ const FuelDashboard = () => {
               >
                 Employees
               </button>
+              <button
+                onClick={() => setActiveTab('receipts')}
+                className={`px-3 py-1 ${
+                  activeTab === 'receipts' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Receipts
+              </button>
             </div>
           </div>
         </div>
       </div>
       
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
-        <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-          <h4 className="text-sm font-medium text-blue-700 mb-1">Total Fuel Cost</h4>
-          <p className="text-2xl font-bold text-blue-800">₹{totalCost}</p>
+      {/* Summary Cards - Only show for non-receipt tabs */}
+      {activeTab !== 'receipts' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
+          <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+            <h4 className="text-sm font-medium text-blue-700 mb-1">Total Fuel Cost</h4>
+            <p className="text-2xl font-bold text-blue-800">₹{totalCost}</p>
+          </div>
+          
+          <div className="bg-green-50 rounded-lg p-4 border border-green-100">
+            <h4 className="text-sm font-medium text-green-700 mb-1">Total Quantity</h4>
+            <p className="text-2xl font-bold text-green-800">{totalQuantity} L</p>
+          </div>
+          
+          <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
+            <h4 className="text-sm font-medium text-purple-700 mb-1">Average Price</h4>
+            <p className="text-2xl font-bold text-purple-800">₹{avgPrice}/L</p>
+          </div>
         </div>
-        
-        <div className="bg-green-50 rounded-lg p-4 border border-green-100">
-          <h4 className="text-sm font-medium text-green-700 mb-1">Total Quantity</h4>
-          <p className="text-2xl font-bold text-green-800">{totalQuantity} L</p>
-        </div>
-        
-        <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
-          <h4 className="text-sm font-medium text-purple-700 mb-1">Average Price</h4>
-          <p className="text-2xl font-bold text-purple-800">₹{avgPrice}/L</p>
-        </div>
-      </div>
+      )}
       
       <div className="p-6 pt-0">
         {/* Content based on active tab */}
@@ -305,6 +316,11 @@ const FuelDashboard = () => {
         {/* Employees Tab */}
         {activeTab === 'employees' && (
           <EmployeeStats />
+        )}
+        
+        {/* Receipts Tab */}
+        {activeTab === 'receipts' && (
+          <ReceiptsTab />
         )}
       </div>
     </div>

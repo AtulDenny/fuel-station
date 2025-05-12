@@ -1,0 +1,6 @@
+# server/ocr_service/requirements.txt
+pytesseract==0.3.10
+opencv-python==4.8.0.76
+numpy==1.24.3
+Flask==2.3.2
+Werkzeug==2.3.6

@@ -20,6 +20,7 @@ import Employee from './models/Employee.js';
 import machineRoutes from './routes/machine.js';
 import employeeRoutes from './routes/employee.js';
 import fuelRoutes from './routes/fuel.js';  // Import the new fuel routes
+import receiptRoutes from './routes/receipt.js';
 
 // ES Module fixes for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -76,6 +77,7 @@ const auth = (req, res, next) => {
 
 // Routes
 // Register User
+app.use('/api/receipts', receiptRoutes);
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
