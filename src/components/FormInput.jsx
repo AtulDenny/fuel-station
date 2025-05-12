@@ -9,10 +9,14 @@ const FormInput = ({
   onChange, 
   placeholder, 
   required = false,
-  error
+  error,
+  min,
+  max,
+  step,
+  className
 }) => {
   return (
-    <div className="mb-4">
+    <div className={`mb-4 ${className || ''}`}>
       <label 
         htmlFor={id} 
         className="block text-sm font-medium text-gray-700 mb-1"
@@ -27,6 +31,9 @@ const FormInput = ({
         onChange={onChange}
         placeholder={placeholder}
         required={required}
+        min={min}
+        max={max}
+        step={step}
         className={`w-full px-4 py-2 rounded-lg border ${
           error ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 
           'border-gray-300 focus:ring-blue-700 focus:border-blue-700'

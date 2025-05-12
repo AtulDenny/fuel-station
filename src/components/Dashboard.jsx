@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import FuelDashboard from './FuelDashboard';
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
@@ -115,15 +116,8 @@ const Dashboard = () => {
             <p><strong>Account created:</strong> {user?.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}</p>
           </div>
           
-          <div className="mt-6 bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4">Welcome to Your Dashboard!</h2>
-            <p className="mb-4">
-              Your account has been successfully created and you're now logged in.
-            </p>
-            <p>
-              This is a simple dashboard page. In a real application, you would see your personalized
-              content, settings, and other features here.
-            </p>
+          <div className="mt-6">
+            <FuelDashboard />
           </div>
         </div>
       </div>

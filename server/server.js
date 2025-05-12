@@ -1,4 +1,7 @@
 // server/server.js
+/* eslint-disable no-undef */  // Disable the no-undef rule for the entire file
+/* eslint-disable no-unused-vars */  // Disable the no-unused-vars rule for the entire file
+
 import express from 'express';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -7,6 +10,16 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
+
+// Import models
+import Fuel from './models/Fuel.js';
+import Machine from './models/Machine.js';
+import Employee from './models/Employee.js';
+
+// Import routes
+import machineRoutes from './routes/machine.js';
+import employeeRoutes from './routes/employee.js';
+import fuelRoutes from './routes/fuel.js';  // Import the new fuel routes
 
 // ES Module fixes for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -40,6 +53,26 @@ const User = mongoose.model('User', userSchema);
 
 // JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+
+// Auth middleware
+const auth = (req, res, next) => {
+  // Get token from header
+  const token = req.header('x-auth-token');
+
+  // Check if no token
+  if (!token) {
+    return res.status(401).json({ message: 'No token, authorization denied' });
+  }
+
+  // Verify token
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(401).json({ message: 'Token is not valid' });
+  }
+};
 
 // Routes
 // Register User
@@ -127,26 +160,6 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Protected route middleware
-const auth = (req, res, next) => {
-  // Get token from header
-  const token = req.header('x-auth-token');
-
-  // Check if no token
-  if (!token) {
-    return res.status(401).json({ message: 'No token, authorization denied' });
-  }
-
-  // Verify token
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    res.status(401).json({ message: 'Token is not valid' });
-  }
-};
-
 // Protected user route
 app.get('/api/auth/user', auth, async (req, res) => {
   try {
@@ -157,6 +170,153 @@ app.get('/api/auth/user', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// Seed initial data - machines, employees, and fuel entries
+app.post('/api/seed-data', auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Check if we already have data
+    const existingMachines = await Machine.countDocuments();
+    const existingEmployees = await Employee.countDocuments();
+    const existingFuel = await Fuel.countDocuments({ user: userId });
+    
+    // Only seed if we don't have data yet
+    if (existingMachines === 0 && existingEmployees === 0 && existingFuel === 0) {
+      
+      // 1. Create machines
+      const machines = [
+        {
+          name: 'Pump Station 1',
+          machineId: 'PS001',
+          location: 'Main Entrance',
+          fuelTypes: ['Petrol', 'Diesel'],
+          status: 'Active',
+          lastMaintenance: new Date('2025-04-01'),
+          notes: 'High traffic location'
+        },
+        {
+          name: 'Pump Station 2',
+          machineId: 'PS002',
+          location: 'North Side',
+          fuelTypes: ['Petrol', 'CNG'],
+          status: 'Active',
+          lastMaintenance: new Date('2025-04-15'),
+          notes: 'CNG specialist pump'
+        },
+        {
+          name: 'Pump Station 3',
+          machineId: 'PS003',
+          location: 'South Side',
+          fuelTypes: ['Petrol', 'Diesel', 'CNG'],
+          status: 'Maintenance',
+          lastMaintenance: new Date('2025-05-02'),
+          notes: 'Currently under maintenance'
+        }
+      ];
+      
+      const createdMachines = await Machine.insertMany(machines);
+      console.log('Machines created:', createdMachines.length);
+      
+      // 2. Create employees
+      const employees = [
+        {
+          name: 'Rahul Sharma',
+          employeeId: 'EMP001',
+          position: 'Pump Operator',
+          contactNumber: '9876543210',
+          email: 'rahul@example.com',
+          status: 'Active',
+          joinDate: new Date('2024-01-15')
+        },
+        {
+          name: 'Priya Patel',
+          employeeId: 'EMP002',
+          position: 'Cashier',
+          contactNumber: '9876543211',
+          email: 'priya@example.com',
+          status: 'Active',
+          joinDate: new Date('2024-02-10')
+        },
+        {
+          name: 'Amit Kumar',
+          employeeId: 'EMP003',
+          position: 'Pump Operator',
+          contactNumber: '9876543212',
+          email: 'amit@example.com',
+          status: 'On Leave',
+          joinDate: new Date('2023-11-05')
+        }
+      ];
+      
+      const createdEmployees = await Employee.insertMany(employees);
+      console.log('Employees created:', createdEmployees.length);
+      
+      // 3. Create fuel entries
+      const fuelEntries = [
+        {
+          user: userId,
+          machine: createdMachines[0]._id,
+          employee: createdEmployees[0]._id,
+          date: new Date('2025-05-01'),
+          fuelType: 'Petrol',
+          quantity: 35.5,
+          pricePerUnit: 92.34,
+          totalCost: (35.5 * 92.34).toFixed(2),
+          odometerReading: 12500,
+          location: 'Main Entrance',
+          shift: 'Morning'
+        },
+        {
+          user: userId,
+          machine: createdMachines[1]._id,
+          employee: createdEmployees[1]._id,
+          date: new Date('2025-04-15'),
+          fuelType: 'Petrol',
+          quantity: 40.2,
+          pricePerUnit: 91.75,
+          totalCost: (40.2 * 91.75).toFixed(2),
+          odometerReading: 12200,
+          location: 'North Side',
+          shift: 'Afternoon'
+        },
+        {
+          user: userId,
+          machine: createdMachines[0]._id,
+          employee: createdEmployees[2]._id,
+          date: new Date('2025-04-02'),
+          fuelType: 'Diesel',
+          quantity: 30.8,
+          pricePerUnit: 93.10,
+          totalCost: (30.8 * 93.10).toFixed(2),
+          odometerReading: 11950,
+          location: 'Main Entrance',
+          shift: 'Evening'
+        }
+      ];
+      
+      const createdFuelEntries = await Fuel.insertMany(fuelEntries);
+      console.log('Fuel entries created:', createdFuelEntries.length);
+      
+      res.json({ 
+        message: 'Data seeded successfully',
+        machines: createdMachines.length,
+        employees: createdEmployees.length,
+        fuelEntries: createdFuelEntries.length
+      });
+    } else {
+      res.json({ message: 'Data already exists, skipping seed operation' });
+    }
+  } catch (error) {
+    console.error('Error seeding data:', error);
+    res.status(500).json({ message: 'Server error while seeding data' });
+  }
+});
+
+// Use the route files
+app.use('/api/machines', machineRoutes);
+app.use('/api/employees', employeeRoutes);
+app.use('/api/fuel', fuelRoutes);  // Use the fuel routes
 
 // Serve static files for production
 if (process.env.NODE_ENV === 'production') {
