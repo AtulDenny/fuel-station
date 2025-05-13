@@ -34,7 +34,8 @@ const EmployeeSchema = new mongoose.Schema({
   joinDate: {
     type: Date,
     default: Date.now
-  }
+  },
+  
 }, {
   timestamps: true
 });

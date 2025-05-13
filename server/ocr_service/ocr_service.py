@@ -75,7 +75,11 @@ def extract_fields_from_text(text):
     data = {
         "PRINT DATE": "",
         "PUMP SERIAL NUMBER": "",
-        "NOZZLES": []
+        "NOZZLES": [],
+        # Add new fields for employee information
+        "EMPLOYEE_NAME": "",
+        "EMPLOYEE_ID": "",
+        "SHIFT_TIME": ""
     }
     nozzle = None
     for line in lines:
@@ -105,6 +109,22 @@ def extract_fields_from_text(text):
         m = re.search(r'TOT\s*SALES\s*[:\-]?\s*([0-9]+)', line, re.I)
         if m and nozzle:
             nozzle["TOT SALES"] = m.group(1)
+            
+        # Employee name pattern (customize based on your receipt format)
+        m = re.search(r'OPERATOR\s*[:\-]?\s*([A-Za-z\s]+)', line, re.I)
+        if m:
+            data["EMPLOYEE_NAME"] = m.group(1).strip()
+            
+        # Employee ID pattern
+        m = re.search(r'EMP\s*ID\s*[:\-]?\s*([A-Z0-9]+)', line, re.I)
+        if m:
+            data["EMPLOYEE_ID"] = m.group(1)
+            
+        # Shift time pattern
+        m = re.search(r'SHIFT\s*TIME\s*[:\-]?\s*([0-9:APM]+)', line, re.I)
+        if m:
+            data["SHIFT_TIME"] = m.group(1)
+            
     if nozzle:
         data["NOZZLES"].append(nozzle)
     return data
@@ -127,7 +147,10 @@ def process_receipt(image_path):
             "PUMP SERIAL NUMBER": f"ERROR-{uuid.uuid4().hex[:8]}",
             "NOZZLES": [
                 {"NOZZLE": "1", "A": "0", "V": "0", "TOT SALES": "0"}
-            ]
+            ],
+            "EMPLOYEE_NAME": "",
+            "EMPLOYEE_ID": "",
+            "SHIFT_TIME": ""
         }
         error_text = f"OCR ERROR: {str(e)}\n\nThis is fallback data due to OCR failure."
         return fallback_data, error_text
@@ -136,6 +159,9 @@ def print_receipt_data(label, data):
     print(f"\n===== {label} RECEIPT =====")
     print(f"PRINT DATE: {data['PRINT DATE']}")
     print(f"PUMP SERIAL NUMBER: {data['PUMP SERIAL NUMBER']}")
+    print(f"EMPLOYEE NAME: {data['EMPLOYEE_NAME']}")
+    print(f"EMPLOYEE ID: {data['EMPLOYEE_ID']}")
+    print(f"SHIFT TIME: {data['SHIFT_TIME']}")
     for nozzle in data["NOZZLES"]:
         print(f"NOZZLE : {nozzle['NOZZLE']}")
         print(f"A: {nozzle['A']}")

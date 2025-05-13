@@ -1,7 +1,7 @@
-// src/components/MachineStats.jsx
 import { useState, useEffect } from 'react';
 import { getMachines } from '../services/machine';
 import { getFuelByMachine } from '../services/fuel';
+import MachineReceiptInfo from './MachineReceiptInfo';
 
 const MachineStats = () => {
   const [machines, setMachines] = useState([]);
@@ -216,6 +216,9 @@ const MachineStats = () => {
                       ))}
                     </div>
                   )}
+                  
+                  {/* Machine Receipt Info */}
+                  <MachineReceiptInfo machineId={machine.machineId} />
                 </div>
               )}
             </div>

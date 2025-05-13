@@ -1,7 +1,7 @@
-// src/components/EmployeeStats.jsx
 import { useState, useEffect } from 'react';
 import { getEmployees } from '../services/employee';
 import { getFuelByEmployee } from '../services/fuel';
+import EmployeeReceiptInfo from './EmployeeReceiptInfo';
 
 const EmployeeStats = () => {
   const [employees, setEmployees] = useState([]);
@@ -74,7 +74,7 @@ const EmployeeStats = () => {
     });
     
     return Object.entries(shifts)
-      .filter(([_, count]) => count > 0)
+      .filter(([_, count]) => count > 0) // Changed from shiftName to _ to fix ESLint error
       .map(([shift, count]) => ({
         shift,
         count
@@ -219,6 +219,9 @@ const EmployeeStats = () => {
                       ))}
                     </div>
                   )}
+                  
+                  {/* Employee Receipt Info */}
+                  <EmployeeReceiptInfo employeeId={employee.employeeId} />
                 </div>
               )}
             </div>

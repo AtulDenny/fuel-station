@@ -1,4 +1,6 @@
-// server/routes/receipt.js
+/* eslint-disable no-undef */
+/* eslint-disable no-unused-vars */
+
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
@@ -7,6 +9,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import Receipt from '../models/Receipt.js';
 import Machine from '../models/Machine.js';
+import Employee from '../models/Employee.js';
 import jwt from 'jsonwebtoken';
 
 const router = express.Router();
@@ -58,7 +61,7 @@ const auth = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key');
     req.user = decoded;
     next();
-  } catch (error) {
+  } catch (err) {
     res.status(401).json({ message: 'Token is not valid' });
   }
 };
@@ -79,8 +82,34 @@ const findMachineBySerial = async (serialNumber) => {
     }
     
     return machine;
-  } catch (error) {
-    console.error('Error finding machine by serial:', error);
+  } catch (err) {
+    console.error('Error finding machine by serial:', err);
+    return null;
+  }
+};
+
+// Helper function to find employee by name or ID
+const findEmployeeByNameOrId = async (name, id) => {
+  if (!name && !id) return null;
+  
+  try {
+    let employee = null;
+    
+    // Try to find by name if provided
+    if (name) {
+      employee = await Employee.findOne({
+        name: { $regex: new RegExp(name, 'i') }
+      });
+    }
+    
+    // If not found by name and ID is provided, try by ID
+    if (!employee && id) {
+      employee = await Employee.findOne({ employeeId: id });
+    }
+    
+    return employee;
+  } catch (err) {
+    console.error('Error finding employee by name or ID:', err);
     return null;
   }
 };
@@ -121,10 +150,20 @@ router.post('/upload', auth, upload.single('image'), async (req, res) => {
       // Try to find the machine by serial number
       const machine = await findMachineBySerial(receiptData['PUMP SERIAL NUMBER']);
       
+      // Try to find the employee by name or ID
+      const employee = await findEmployeeByNameOrId(
+        receiptData['EMPLOYEE_NAME'], 
+        receiptData['EMPLOYEE_ID']
+      );
+      
       // Create receipt record
       const receipt = new Receipt({
         user: req.user.id,
         machine: machine ? machine._id : null,
+        employee: employee ? employee._id : null,
+        employeeName: receiptData['EMPLOYEE_NAME'] || '',
+        employeeId: receiptData['EMPLOYEE_ID'] || '',
+        shiftTime: receiptData['SHIFT_TIME'] || '',
         printDate: receiptData['PRINT DATE'],
         pumpSerialNumber: receiptData['PUMP SERIAL NUMBER'],
         nozzles: receiptData['NOZZLES'].map(nozzle => ({
@@ -148,8 +187,8 @@ router.post('/upload', auth, upload.single('image'), async (req, res) => {
       receipts: receipts
     });
     
-  } catch (error) {
-    console.error('Error processing receipt:', error);
+  } catch (err) {
+    console.error('Error processing receipt:', err);
     
     // Create receipt with error info
     try {
@@ -157,15 +196,15 @@ router.post('/upload', auth, upload.single('image'), async (req, res) => {
         user: req.user.id,
         imagePath: req.file.path,
         processed: false,
-        processingErrors: error.message
+        processingErrors: err.message
       });
-    } catch (saveError) {
-      console.error('Error saving failed receipt:', saveError);
+    } catch (saveErr) {
+      console.error('Error saving failed receipt:', saveErr);
     }
     
     res.status(500).json({ 
       message: 'Error processing receipt', 
-      error: error.message 
+      error: err.message 
     });
   }
 });
@@ -175,11 +214,67 @@ router.get('/', auth, async (req, res) => {
   try {
     const receipts = await Receipt.find({ user: req.user.id })
       .populate('machine', 'name machineId location')
+      .populate('employee', 'name employeeId position')
       .sort({ uploadDate: -1 });
     
     res.json(receipts);
-  } catch (error) {
-    console.error('Error fetching receipts:', error);
+  } catch (err) {
+    console.error('Error fetching receipts:', err);
+    res.status(500).json({ message: 'Server error while fetching receipts' });
+  }
+});
+
+// Get receipts by machine
+router.get('/machine/:machineId', auth, async (req, res) => {
+  try {
+    const { machineId } = req.params;
+    
+    // Find the machine
+    const machine = await Machine.findOne({ machineId });
+    if (!machine) {
+      return res.status(404).json({ message: 'Machine not found' });
+    }
+    
+    const receipts = await Receipt.find({ 
+      user: req.user.id,
+      machine: machine._id
+    })
+    .populate('machine', 'name machineId location')
+    .populate('employee', 'name employeeId position')
+    .sort({ uploadDate: -1 });
+    
+    res.json(receipts);
+  } catch (err) {
+    console.error('Error fetching receipts by machine:', err);
+    res.status(500).json({ message: 'Server error while fetching receipts' });
+  }
+});
+
+// Get receipts by employee
+router.get('/employee/:employeeId', auth, async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    
+    // Find the employee
+    const employee = await Employee.findOne({ employeeId });
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found' });
+    }
+    
+    const receipts = await Receipt.find({ 
+      user: req.user.id,
+      $or: [
+        { employee: employee._id },
+        { employeeId: employeeId }
+      ]
+    })
+    .populate('machine', 'name machineId location')
+    .populate('employee', 'name employeeId position')
+    .sort({ uploadDate: -1 });
+    
+    res.json(receipts);
+  } catch (err) {
+    console.error('Error fetching receipts by employee:', err);
     res.status(500).json({ message: 'Server error while fetching receipts' });
   }
 });
@@ -188,7 +283,8 @@ router.get('/', auth, async (req, res) => {
 router.get('/:id', auth, async (req, res) => {
   try {
     const receipt = await Receipt.findById(req.params.id)
-      .populate('machine', 'name machineId location');
+      .populate('machine', 'name machineId location')
+      .populate('employee', 'name employeeId position');
     
     if (!receipt) {
       return res.status(404).json({ message: 'Receipt not found' });
@@ -200,8 +296,8 @@ router.get('/:id', auth, async (req, res) => {
     }
     
     res.json(receipt);
-  } catch (error) {
-    console.error('Error fetching receipt:', error);
+  } catch (err) {
+    console.error('Error fetching receipt:', err);
     res.status(500).json({ message: 'Server error while fetching receipt' });
   }
 });
@@ -228,8 +324,8 @@ router.delete('/:id', auth, async (req, res) => {
     await Receipt.findByIdAndDelete(req.params.id);
     
     res.json({ message: 'Receipt removed successfully' });
-  } catch (error) {
-    console.error('Error deleting receipt:', error);
+  } catch (err) {
+    console.error('Error deleting receipt:', err);
     res.status(500).json({ message: 'Server error while deleting receipt' });
   }
 });

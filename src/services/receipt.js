@@ -1,4 +1,3 @@
-// src/services/receipt.js
 import axios from 'axios';
 
 const API_URL = 'http://localhost:5000/api/receipts';
@@ -65,6 +64,50 @@ export const getReceipts = async () => {
       console.error('Response data:', error.response.data);
       console.error('Response status:', error.response.status);
     }
+    throw error.response?.data?.message || 'Failed to fetch receipts';
+  }
+};
+
+// Get receipts by machine ID
+export const getReceiptsByMachine = async (machineId) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    
+    const response = await axios.get(`${API_URL}/machine/${machineId}`, {
+      headers: {
+        'x-auth-token': token
+      }
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching receipts for machine ${machineId}:`, error);
+    throw error.response?.data?.message || 'Failed to fetch receipts';
+  }
+};
+
+// Get receipts by employee ID
+export const getReceiptsByEmployee = async (employeeId) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    
+    const response = await axios.get(`${API_URL}/employee/${employeeId}`, {
+      headers: {
+        'x-auth-token': token
+      }
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching receipts for employee ${employeeId}:`, error);
     throw error.response?.data?.message || 'Failed to fetch receipts';
   }
 };

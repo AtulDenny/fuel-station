@@ -1,11 +1,11 @@
-// src/components/FuelDashboard.jsx (Updated to include Receipts tab)
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getFuelEntries, getFuelStats, seedAllData } from '../services/fuel';
 import FuelTable from './FuelTable';
 import AddFuelForm from './AddFuelForm';
 import MachineStats from './MachineStats';
 import EmployeeStats from './EmployeeStats';
 import ReceiptsTab from './ReceiptsTab';
+import ReceiptSummary from './ReceiptSummary';
 
 const FuelDashboard = () => {
   const [fuelEntries, setFuelEntries] = useState([]);
@@ -45,8 +45,8 @@ const FuelDashboard = () => {
 
   const { totalCost, totalQuantity, avgPrice } = getSummary();
 
-  // Fetch fuel entries
-  const loadFuelEntries = async () => {
+  // Fetch fuel entries - wrapped in useCallback to fix ESLint warning
+  const loadFuelEntries = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -58,10 +58,10 @@ const FuelDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
   
-  // Fetch fuel statistics
-  const loadFuelStats = async () => {
+  // Fetch fuel statistics - wrapped in useCallback to fix ESLint warning
+  const loadFuelStats = useCallback(async () => {
     try {
       const stats = await getFuelStats(period);
       setFuelStats(stats);
@@ -69,7 +69,7 @@ const FuelDashboard = () => {
       console.error('Error fetching fuel stats:', err);
       // Don't set error, as this is supplementary data
     }
-  };
+  }, [period]);
 
   // Add seed data - machines, employees, and fuel entries
   const handleSeedData = async () => {
@@ -111,7 +111,7 @@ const FuelDashboard = () => {
     };
     
     loadData();
-  }, [period]);
+  }, [period, loadFuelEntries, loadFuelStats]); // Added missing dependencies
 
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -286,6 +286,9 @@ const FuelDashboard = () => {
                 </div>
               </div>
             )}
+            
+            {/* Receipt Summary */}
+            <ReceiptSummary />
             
             {/* Error message */}
             {error && (

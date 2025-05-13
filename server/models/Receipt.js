@@ -1,4 +1,3 @@
-// server/models/Receipt.js
 import mongoose from 'mongoose';
 
 const NozzleDataSchema = new mongoose.Schema({
@@ -50,6 +49,20 @@ const ReceiptSchema = new mongoose.Schema({
   uploadDate: {
     type: Date,
     default: Date.now
+  },
+  // New fields for employee information
+  employeeName: {
+    type: String
+  },
+  employeeId: {
+    type: String
+  },
+  employee: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Employee'
+  },
+  shiftTime: {
+    type: String
   }
 }, {
   timestamps: true
