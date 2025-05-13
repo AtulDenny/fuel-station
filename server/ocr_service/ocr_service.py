@@ -1,66 +1,75 @@
-# server/ocr_service/ocr_service.py
+# ocr_service.py
+from flask import Flask, request, jsonify
+import os
+import sys
+import uuid
+import tempfile
+from werkzeug.utils import secure_filename
+
+# Import your OCR code
 import pytesseract
 import cv2
 import numpy as np
 import re
-import json
-import os
-import sys
-from flask import Flask, request, jsonify
-from werkzeug.utils import secure_filename
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads/'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 
-# Create uploads directory if it doesn't exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+# Use system temp directory which should have proper permissions
+TEMP_DIR = tempfile.gettempdir()
+UPLOAD_FOLDER = os.path.join(TEMP_DIR, 'ocr_uploads')
+print(f"Using upload directory: {UPLOAD_FOLDER}")
 
-# Set Tesseract path
-if sys.platform.startswith('win'):
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# Make sure the directory exists with proper permissions
+if not os.path.exists(UPLOAD_FOLDER):
+    try:
+        os.makedirs(UPLOAD_FOLDER)
+        print(f"Created directory: {UPLOAD_FOLDER}")
+    except Exception as e:
+        print(f"Error creating directory: {str(e)}")
+        # Fall back to system temp directory if creation fails
+        UPLOAD_FOLDER = TEMP_DIR
+        print(f"Falling back to system temp directory: {UPLOAD_FOLDER}")
+
+# Configure Tesseract path - FIX: Add the executable name
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 def preprocess_image(image_path):
-    logger.info(f"Preprocessing image: {image_path}")
-    img = cv2.imread(image_path)
-    if img is None:
-        raise FileNotFoundError(f"Could not read image at {image_path}")
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # Resize for better OCR
-    gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-    # Denoise
-    gray = cv2.fastNlMeansDenoising(gray, None, 30, 7, 21)
-    # Adaptive thresholding
-    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-    return thresh
+    try:
+        img = cv2.imread(image_path)
+        if img is None:
+            raise FileNotFoundError(f"Could not read image at {image_path}")
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # Resize for better OCR
+        gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+        # Denoise
+        gray = cv2.fastNlMeansDenoising(gray, None, 30, 7, 21)
+        # Adaptive thresholding
+        thresh = cv2.adaptiveThreshold(gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)
+        return thresh
+    except Exception as e:
+        print(f"Error in preprocessing: {str(e)}")
+        raise
 
 def split_receipts(image_path):
-    logger.info(f"Splitting receipts from image: {image_path}")
-    img = cv2.imread(image_path)
-    if img is None:
-        raise FileNotFoundError(f"Could not read image at {image_path}")
-    height, width = img.shape[:2]
-    
-    # Check if the image is wide enough to split
-    if width > height:
+    try:
+        img = cv2.imread(image_path)
+        if img is None:
+            raise FileNotFoundError(f"Could not read image at {image_path}")
+        height, width = img.shape[:2]
         left_half = img[:, :width//2]
         right_half = img[:, width//2:]
-        left_path = os.path.join(app.config['UPLOAD_FOLDER'], 'left_receipt.jpg')
-        right_path = os.path.join(app.config['UPLOAD_FOLDER'], 'right_receipt.jpg')
+        # Use unique filenames with UUIDs to avoid conflicts
+        left_path = os.path.join(UPLOAD_FOLDER, f'left_receipt_{uuid.uuid4()}.jpg')
+        right_path = os.path.join(UPLOAD_FOLDER, f'right_receipt_{uuid.uuid4()}.jpg')
         cv2.imwrite(left_path, left_half)
         cv2.imwrite(right_path, right_half)
+        print(f"Split images saved as {left_path} and {right_path}")
         return [left_path, right_path]
-    else:
-        # Image is taller than wide, don't split
-        return [image_path]
+    except Exception as e:
+        print(f"Error splitting image: {str(e)}")
+        raise
 
 def extract_fields_from_text(text):
-    logger.info("Extracting fields from OCR text")
     # Clean up text and split into lines
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     data = {
@@ -101,61 +110,160 @@ def extract_fields_from_text(text):
     return data
 
 def process_receipt(image_path):
-    logger.info(f"Processing receipt: {image_path}")
     try:
         preprocessed = preprocess_image(image_path)
         # OCR
         ocr_text = pytesseract.image_to_string(preprocessed, config='--oem 3 --psm 6')
-        logger.info("OCR completed successfully")
-        logger.debug(f"OCR Text: {ocr_text}")
+        print("\n=== OCR OUTPUT START ===")
+        print(ocr_text)
+        print("=== OCR OUTPUT END ===\n")
         data = extract_fields_from_text(ocr_text)
-        return {'success': True, 'data': data, 'ocr_text': ocr_text}
+        return data, ocr_text
     except Exception as e:
-        logger.error(f"Error processing receipt: {str(e)}")
-        return {'success': False, 'error': str(e)}
+        print(f"Error processing receipt: {str(e)}")
+        # If OCR fails, provide fallback dummy data
+        fallback_data = {
+            "PRINT DATE": f"ERROR-{uuid.uuid4().hex[:8]}",
+            "PUMP SERIAL NUMBER": f"ERROR-{uuid.uuid4().hex[:8]}",
+            "NOZZLES": [
+                {"NOZZLE": "1", "A": "0", "V": "0", "TOT SALES": "0"}
+            ]
+        }
+        error_text = f"OCR ERROR: {str(e)}\n\nThis is fallback data due to OCR failure."
+        return fallback_data, error_text
 
+def print_receipt_data(label, data):
+    print(f"\n===== {label} RECEIPT =====")
+    print(f"PRINT DATE: {data['PRINT DATE']}")
+    print(f"PUMP SERIAL NUMBER: {data['PUMP SERIAL NUMBER']}")
+    for nozzle in data["NOZZLES"]:
+        print(f"NOZZLE : {nozzle['NOZZLE']}")
+        print(f"A: {nozzle['A']}")
+        print(f"V: {nozzle['V']}")
+        print(f"TOT SALES: {nozzle['TOT SALES']}")
+        print("-" * 30)
+
+# Flask route to handle API request
 @app.route('/process', methods=['POST'])
 def process_image():
-    if 'image' not in request.files:
-        return jsonify({'success': False, 'error': 'No image file provided'}), 400
+    print("Received request to /process endpoint")
     
+    if 'image' not in request.files:
+        print("No image file in request")
+        return jsonify({"success": False, "error": "No image provided"}), 400
+        
     file = request.files['image']
     if file.filename == '':
-        return jsonify({'success': False, 'error': 'No image selected'}), 400
+        print("Empty filename")
+        return jsonify({"success": False, "error": "No file selected"}), 400
+        
+    # Get split option (default to true)
+    split_option = request.form.get('split', 'true').lower() == 'true'
+    print(f"Split option: {split_option}")
     
+    # Save the uploaded file with error handling
     try:
         filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}_{filename}")
         file.save(file_path)
-        
-        # Check if we should attempt to split the receipt
-        split_option = request.form.get('split', 'true').lower() == 'true'
+        print(f"Saved uploaded file to {file_path}")
+    except Exception as e:
+        print(f"Error saving uploaded file: {str(e)}")
+        return jsonify({"success": False, "error": f"File upload error: {str(e)}"}), 500
+    
+    try:
+        results = []
         
         if split_option:
-            receipt_paths = split_receipts(file_path)
-        else:
-            receipt_paths = [file_path]
-        
-        results = []
-        for i, path in enumerate(receipt_paths):
-            result = process_receipt(path)
-            if result['success']:
+            print("Processing with split option")
+            try:
+                split_paths = split_receipts(file_path)
+                
+                # Process left receipt
+                left_data, left_ocr_text = process_receipt(split_paths[0])
+                print_receipt_data("LEFT", left_data)
                 results.append({
-                    'receipt_index': i,
-                    'data': result['data'],
-                    'ocr_text': result['ocr_text']
+                    "data": left_data,
+                    "ocr_text": left_ocr_text
                 })
+                
+                # Process right receipt
+                right_data, right_ocr_text = process_receipt(split_paths[1])
+                print_receipt_data("RIGHT", right_data)
+                results.append({
+                    "data": right_data,
+                    "ocr_text": right_ocr_text
+                })
+                
+                # Clean up temp files
+                try:
+                    os.remove(split_paths[0])
+                    os.remove(split_paths[1])
+                    print("Cleaned up split image files")
+                except Exception as e:
+                    print(f"Error removing split files: {str(e)}")
+            except Exception as e:
+                print(f"Error in split processing: {str(e)}")
+                # If splitting fails, fall back to single processing
+                print("Falling back to single receipt processing")
+                data, ocr_text = process_receipt(file_path)
+                results.append({
+                    "data": data,
+                    "ocr_text": ocr_text
+                })
+        else:
+            print("Processing as single receipt")
+            # Process single receipt
+            data, ocr_text = process_receipt(file_path)
+            results.append({
+                "data": data,
+                "ocr_text": ocr_text
+            })
         
+        # Clean up the original file
+        try:
+            os.remove(file_path)
+            print(f"Cleaned up original file")
+        except Exception as e:
+            print(f"Error removing original file: {str(e)}")
+            
+        print("Processing completed successfully")
         return jsonify({
-            'success': True, 
-            'results': results,
-            'receipts_processed': len(results)
+            "success": True,
+            "results": results
         })
         
     except Exception as e:
-        logger.error(f"Error in process_image: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        print(f"Error processing receipt: {str(e)}")
+        # Clean up in case of error
+        try:
+            os.remove(file_path)
+        except:
+            pass
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5001))
-    app.run(host='0.0.0.0', port=port, debug=True)
+# Add a status endpoint
+@app.route('/', methods=['GET'])
+def home():
+    tesseract_exists = os.path.exists(pytesseract.pytesseract.tesseract_cmd)
+    return jsonify({
+        "status": "OCR Service is running",
+        "upload_folder": UPLOAD_FOLDER,
+        "tesseract_path": pytesseract.pytesseract.tesseract_cmd,
+        "tesseract_installed": tesseract_exists
+    })
+
+if __name__ == "__main__":
+    print("Starting OCR service on port 5001...")
+    print(f"System platform: {sys.platform}")
+    print(f"Upload folder: {UPLOAD_FOLDER}")
+    print(f"Tesseract path: {pytesseract.pytesseract.tesseract_cmd}")
+    tesseract_exists = os.path.exists(pytesseract.pytesseract.tesseract_cmd)
+    print(f"Tesseract installed: {tesseract_exists}")
+    if not tesseract_exists:
+        print("WARNING: Tesseract executable not found at the specified path!")
+        print("Please install Tesseract OCR from: https://github.com/UB-Mannheim/tesseract/wiki")
+    app.run(host='0.0.0.0', port=5001)
